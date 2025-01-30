@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Absensi Muda/Mudi</title>
+    <style>
+        /* Same styles as before */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow-x: hidden;  /* Hanya menyembunyikan scroll horizontal */
+        }
+
+
+         video.background-video {
+            position: fixed;  /* Tetap di belakang layar */
+            top: 50%;
+            left: 50%;
+            width: 100vw;  /* Lebar penuh viewport */
+            height: 100vh;  /* Tinggi penuh viewport */
+            object-fit: cover; /* Menutupi seluruh layar tanpa merusak rasio */
+            transform: translate(-50%, -50%); /* Pusatkan video */
+            z-index: -1;
+        }
+
+
+        
+        .container {
+            background: rgba(255, 255, 255, 0.8);  
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            text-align: center;
+            z-index: 1; 
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+
+        td {
+            cursor: pointer;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        @media (max-width: 600px) {
+        video.background-video {
+            width: 100%;
+            height: 100vh; 
+        }
+        .container {
+            width: 100%; 
+        }
+        }
+    </style>
+</head>
+<body>
+    <video class="background-video" autoplay loop muted>
+        <source src="file/anime.mp4" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+
+    <div class="container">
+        <h2>Login Admin</h2>
+        <input type="password" id="password" placeholder="Masukkan Password">
+        <button onclick="login()">Login</button>
+    </div>
+    
+    <div id="absensi" class="container" style="display: none;">
+        <h2>Absensi Pengajian Muda Mudi</h2>
+        <button onclick="tambahNama()">Tambah Nama</button>
+        <button onclick="resetAbsensi()">Reset Absensi</button>
+        <button onclick="downloadExcel()">Download Absensi (Excel)</button>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nama</th>
+                        <th>Minggu 1</th>
+                        <th>Minggu 2</th>
+                        <th>Minggu 3</th>
+                        <th>Minggu 4</th>
+                        <th>Minggu 5</th>
+                        <th>Keterangan</th>
+                    </tr>
+                </thead>
+                <tbody id="absen-list">
+                    <!-- Data absensi diisi lewat JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        <button onclick="simpanAbsensi()">Simpan Absensi</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.2/xlsx.full.min.js"></script>
+
+    <script>
+        const adminPassword = "admin123";
+        let peserta = [
+            "ANDRE", "ANTON", "DEDI", "DAFA", "FAIZ", "FATAN", "KHISNA", "RIDHO", "RAFQI",
+            "BUDI", "DANI", "RIKO", "RIYAN", "ROBIK", "FENDI", "ARGA", "YUSAK", "SULTON",
+            "HAVY", "INTAN", "HANUM", "ITA", "ISMI", "UUT", "NAYLA", "ZULFA", "DELA",
+            "RAHMA", "ANIS", "VITO", "GUSTAV", "KAMIL", "RAFAEL", "HURIYA", "NINGRUM",
+            "LIPTA", "ASKIYA", "ALDO"
+        ];
+
+        // Load absensi jika ada data tersimpan
+        window.onload = loadAbsensi;
+
+        function login() {
+            const inputPassword = document.getElementById('password').value;
+            if (inputPassword === adminPassword) {
+                document.querySelector('.container').style.display = 'none'; // Menyembunyikan form login
+                document.getElementById('absensi').style.display = 'block';  // Menampilkan tabel absensi
+            } else {
+                alert('Password salah!');
+            }
+        }
+
+        function loadAbsensi() {
+            const tbody = document.getElementById('absen-list');
+            tbody.innerHTML = "";  // Bersihkan tabel sebelum mengisi data
+            let absensiTersimpan = JSON.parse(localStorage.getItem('absensi')) || {};
+            let pesertaTersimpan = JSON.parse(localStorage.getItem('peserta')) || peserta;
+
+            // Update peserta dengan data yang ada di localStorage
+            peserta = pesertaTersimpan;
+
+            peserta.forEach(nama => {
+                let row = `<tr>
+                    <td contenteditable="true" onblur="ubahNama(this, '${nama}')">${nama}</td>
+                    ${[1, 2, 3, 4, 5].map(minggu => `
+                        <td onclick="ubahStatus(this, '${nama}', ${minggu})" class="status">${absensiTersimpan[nama] && absensiTersimpan[nama][minggu] ? absensiTersimpan[nama][minggu] : '-'}</td>
+                    `).join('')}
+                    <td id="keterangan-${nama}">${absensiTersimpan[nama] && absensiTersimpan[nama].keterangan ? absensiTersimpan[nama].keterangan : ''}</td>
+                </tr>`;
+                tbody.innerHTML += row;
+            });
+        }
+
+        function ubahNama(cell, namaLama) {
+            let namaBaru = cell.innerText.trim();
+            if (namaBaru !== namaLama) {
+                // Update nama di array peserta
+                peserta = peserta.map(nama => nama === namaLama ? namaBaru : nama);
+
+                // Simpan nama yang sudah diubah di localStorage
+                localStorage.setItem('peserta', JSON.stringify(peserta));
+            }
+        }
+
+                function ubahStatus(cell, nama, minggu) {
+            let status = prompt("Masukkan status (H: Hadir, I: Izin, A: Alpa)");
+            let keterangan = "";
+
+            if (status === "H") {
+                cell.innerHTML = "H";
+                cell.style.backgroundColor = "lightgreen";
+                keterangan = "Hadir";
+            } else if (status === "I") {
+                let alasan = prompt("Masukkan alasan izin:");
+                cell.innerHTML = "I";
+                cell.style.backgroundColor = "yellow";
+                keterangan = `Izin karena ${alasan}`;
+            } else if (status === "A") {
+                cell.innerHTML = "A";
+                cell.style.backgroundColor = "red";
+                keterangan = "Alpa";
+            } else {
+                alert("Input tidak valid! Masukkan H, I, atau A.");
+                return;  // Jangan lanjut jika input tidak valid
+            }
+
+            // Simpan status dan keterangan ke localStorage
+            let absensiTersimpan = JSON.parse(localStorage.getItem('absensi')) || {};
+            if (!absensiTersimpan[nama]) {
+                absensiTersimpan[nama] = { 1: "-", 2: "-", 3: "-", 4: "-", 5: "-", keterangan: "" };
+            }
+            absensiTersimpan[nama][minggu] = status;
+            absensiTersimpan[nama].keterangan = absensiTersimpan[nama].keterangan
+                ? `${absensiTersimpan[nama].keterangan}, Minggu ${minggu}: ${keterangan}`
+                : `Minggu ${minggu}: ${keterangan}`;
+
+            // Simpan kembali ke localStorage
+            localStorage.setItem('absensi', JSON.stringify(absensiTersimpan));
+
+            // Update keterangan di tabel
+            simpanKeterangan(nama, minggu, keterangan);
+        }
+
+        function simpanKeterangan(nama, minggu, keterangan) {
+            let keteranganCell = document.getElementById(`keterangan-${nama}`);
+            let teksSebelumnya = keteranganCell.innerHTML;
+            keteranganCell.innerHTML = teksSebelumnya ? `${teksSebelumnya}, Minggu ${minggu}: ${keterangan}` : `Minggu ${minggu}: ${keterangan}`;
+        }
+
+
+        function simpanAbsensi() {
+            let absensi = {};
+            document.querySelectorAll('.status').forEach(cell => {
+                let nama = cell.parentElement.cells[0].textContent;
+                let minggu = cell.cellIndex;
+                absensi[nama] = absensi[nama] || {};
+                absensi[nama][minggu] = cell.textContent;
+            });
+
+            localStorage.setItem('absensi', JSON.stringify(absensi));
+            alert('Absensi berhasil disimpan!');
+        }
+
+        function downloadExcel() {
+            const wb = XLSX.utils.book_new();
+        const wsData = [
+            ['Nama', 'Minggu 1', 'Minggu 2', 'Minggu 3', 'Minggu 4', 'Minggu 5', 'Keterangan']
+        ];
+
+        const absensiTersimpan = JSON.parse(localStorage.getItem('absensi')) || {};
+        const pesertaTersimpan = JSON.parse(localStorage.getItem('peserta')) || peserta;
+
+        pesertaTersimpan.forEach(nama => {
+            let row = [
+                nama,
+                absensiTersimpan[nama]?.[1] || '-',
+                absensiTersimpan[nama]?.[2] || '-',
+                absensiTersimpan[nama]?.[3] || '-',
+                absensiTersimpan[nama]?.[4] || '-',
+                absensiTersimpan[nama]?.[5] || '-',
+                absensiTersimpan[nama]?.keterangan || ''  // Menambahkan keterangan ke dalam kolom
+            ];
+            wsData.push(row);
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        XLSX.utils.book_append_sheet(wb, ws, 'Absensi');
+        XLSX.writeFile(wb, 'Absensi_Pengajian_Muda_Mudi.xlsx');
+    }
+
+        function tambahNama() {
+            let namaBaru = prompt("Masukkan nama baru:");
+            if (namaBaru) {
+                let tbody = document.getElementById("absen-list");
+                let row = `<tr>
+                    <td contenteditable="true">${namaBaru}</td>
+                    ${[1, 2, 3, 4, 5].map(minggu => `
+                        <td onclick="ubahStatus(this, '${namaBaru}', ${minggu})" class="status">-</td>
+                    `).join('')}
+                    <td id="keterangan-${namaBaru}"></td>
+                </tr>`;
+                tbody.innerHTML += row;
+
+                // Update peserta dan simpan ke localStorage
+                peserta.push(namaBaru);
+                localStorage.setItem('peserta', JSON.stringify(peserta));
+            }
+        }
+
+        function resetAbsensi() {
+            if (confirm("Apakah Anda yakin ingin mereset absensi?")) {
+                let absensiTersimpan = JSON.parse(localStorage.getItem("absensi")) || {};
+                Object.keys(absensiTersimpan).forEach(nama => {
+                    absensiTersimpan[nama] = { 1: "-", 2: "-", 3: "-", 4: "-", 5: "-", keterangan: "" };
+                });
+                localStorage.setItem("absensi", JSON.stringify(absensiTersimpan));
+                loadAbsensi();  // Muat ulang data absensi
+                alert("Absensi berhasil direset!");
+            }
+        }
+    </script>
+</body>
+</html>
